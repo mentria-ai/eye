@@ -9,7 +9,7 @@ attrs==25.3.0
 av==14.4.0
 banal==1.0.6
 beautifulsoup4==4.13.4
-block_sparse_attn==0.0.1
+# block_sparse_attn==0.0.1  # REMOVED: Not available on PyPI - not needed for Qwen3VL
 bs4==0.0.2
 certifi
 charset-normalizer==3.4.2
@@ -91,7 +91,7 @@ pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pytz==2025.2
 PyYAML==6.0.2
-qwen-vl-utils==0.0.11
+qwen-vl-utils>=0.0.11
 RapidFuzz==3.13.0
 regex==2024.11.6
 requests==2.32.4

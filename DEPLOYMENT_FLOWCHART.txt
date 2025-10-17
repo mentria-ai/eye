@@ -1,0 +1,290 @@
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                      QWEN3 DEPLOYMENT FLOWCHART                           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+DECISION TREE: Which GPU to Use?
+════════════════════════════════════════════════════════════════════════════
+
+START
+  │
+  ├─ Do you want to TEST locally?
+  │  ├─ YES → Use your current GPU (any 24GB+ GPU works)
+  │  │         Command: python streaming_vlm/inference/inference.py ...
+  │  │         Then jump to "Cloud Deployment" below
+  │  │
+  │  └─ NO → Go to "Cloud Deployment"
+  │
+  └─ CLOUD DEPLOYMENT (RunPod)
+     │
+     ├─ What's your priority?
+     │  │
+     │  ├─ BUDGET ("I want to spend <$5 total")
+     │  │  └─ Use: L40S GPU
+     │  │     Cost: $0.30-0.50/hour
+     │  │     Video: ~1 min processed per $0.02
+     │  │     Command: runpod.io → Create Pod → Select L40S
+     │  │
+     │  ├─ PRODUCTION ("Quality & Speed matter")
+     │  │  └─ Use: A100 (40GB) ⭐ RECOMMENDED
+     │  │     Cost: $0.50-0.70/hour
+     │  │     Video: ~1 min processed per $0.15
+     │  │     Quality: Excellent
+     │  │     FPS: 2-4 FPS
+     │  │     Command: runpod.io → Create Pod → Select A100 40GB
+     │  │
+     │  └─ MAXIMUM SPEED ("Money is not an issue")
+     │     └─ Use: H100 (80GB)
+     │        Cost: $0.80-1.00/hour
+     │        Video: ~1 min processed per $0.10
+     │        Quality: Same as A100
+     │        FPS: 5-8 FPS
+     │        Command: runpod.io → Create Pod → Select H100
+
+════════════════════════════════════════════════════════════════════════════
+
+SETUP WORKFLOWS
+════════════════════════════════════════════════════════════════════════════
+
+OPTION A: LOCAL GPU
+─────────────────────────────────────────────────────────────────────────
+
+1. Check if transformers is updated
+   pip install --upgrade "transformers>=4.51.0"
+
+2. Run inference
+   python streaming_vlm/inference/inference.py \
+       --model_path Qwen/Qwen3-VL-8B-Instruct \
+       --model_base Qwen3 \
+       --video_path video.mp4
+
+3. Check output
+   Check results in output/
+
+
+OPTION B: RUNPOD DEPLOYMENT (Recommended)
+─────────────────────────────────────────────────────────────────────────
+
+1. Create account
+   Go to: runpod.io/console
+   Click: "GPU Pods" → "Create Pod"
+
+2. Configure Pod
+   Template: PyTorch 2.0 / CUDA 12.1
+   GPU: A100 (recommended)
+   Storage: 100GB
+   Click: "Deploy"
+
+3. Wait for pod (2-5 minutes)
+   Copy: SSH connection string
+
+4. Run setup (ONE command!)
+   ssh root@your-pod-id.runpod.io
+   bash <(curl -s https://raw.githubusercontent.com/your-org/streaming-vlm/main/scripts/setup_runpod.sh)
+
+5. Process video
+   ./run_inference.sh video.mp4 output.vtt
+
+6. Download results
+   sftp root@your-pod-id.runpod.io
+   get output.vtt
+   quit
+
+
+OPTION C: ADVANCED (API SERVER)
+─────────────────────────────────────────────────────────────────────────
+
+1. Follow Option B steps 1-4
+
+2. Create server.py (see RUNPOD_DEPLOYMENT.md section "Step 5")
+
+3. Run server
+   python server.py
+
+4. Make requests
+   curl -X POST -F "video=@video.mp4" http://your-pod-id:8000/process-video
+
+════════════════════════════════════════════════════════════════════════════
+
+PERFORMANCE EXPECTATIONS
+════════════════════════════════════════════════════════════════════════════
+
+GPU Model      VRAM    FPS    Throughput        Cost/Min Video
+────────────────────────────────────────────────────────────────
+L40S           48GB    3-5    1 min/20-33 sec  $0.08-0.17
+A100 40GB      40GB    2-4    1 min/15-30 sec  $0.15-0.35 ⭐
+A100 80GB      80GB    2-4    1 min/15-30 sec  $0.30-0.50
+H100 80GB      80GB    5-8    1 min/7-12 sec   $0.10-0.20
+
+
+Example: Processing 1 hour of video
+────────────────────────────────────────────────────────────────
+
+L40S: 60 min ÷ 4 FPS ≈ 15 min compute = ~$0.08-0.13
+A100: 60 min ÷ 3 FPS ≈ 20 min compute = ~$0.17-0.23 (RECOMMENDED)
+H100: 60 min ÷ 6 FPS ≈ 10 min compute = ~$0.13-0.17
+
+════════════════════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING FLOWCHART
+════════════════════════════════════════════════════════════════════════════
+
+Error: ImportError: cannot import name 'Qwen3VLForConditionalGeneration'
+  └─ FIX: pip install --upgrade transformers>=4.51.0
+          (or: pip install -r infer_requirements.txt)
+
+Error: CUDA out of memory
+  └─ FIX: python streaming_vlm/inference/inference.py ... \
+                --window_size 8 \
+                --chunk_duration 1
+
+Error: Model download is slow
+  └─ FIX: Pre-download on your local machine
+          OR use git-lfs on RunPod:
+          apt-get install git-lfs
+          git clone https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct
+
+Error: Slow inference on RunPod
+  └─ CHECK GPU: nvidia-smi (should show your GPU)
+     CHECK Flash Attention: python -c "from transformers import is_flash_attn2_available; print(is_flash_attn2_available())"
+     SHOULD BE: True
+     If False: pip install flash-attn
+
+Error: Pod keeps disconnecting
+  └─ FIX: Use tmux for persistent sessions
+          tmux new-session -d -s inference
+          tmux attach -t inference
+          python streaming_vlm/inference/inference.py ...
+          Detach: Ctrl+B then D
+
+════════════════════════════════════════════════════════════════════════════
+
+QUICK REFERENCE COMMANDS
+════════════════════════════════════════════════════════════════════════════
+
+Test Local:
+───────────
+pip install --upgrade transformers
+python streaming_vlm/inference/inference.py \
+    --model_path Qwen/Qwen3-VL-8B-Instruct \
+    --model_base Qwen3 \
+    --video_path video.mp4 \
+    --output_dir output.vtt
+
+RunPod Setup (ONE LINE):
+────────────────────────
+bash <(curl -s https://raw.githubusercontent.com/your-org/streaming-vlm/main/scripts/setup_runpod.sh)
+
+RunPod Inference:
+─────────────────
+./run_inference.sh video.mp4 output.vtt
+
+Advanced - Emit JSON:
+─────────────────────
+python streaming_vlm/inference/inference.py \
+    --model_path Qwen/Qwen3-VL-8B-Instruct \
+    --model_base Qwen3 \
+    --video_path video.mp4 \
+    --emit_json | jq .  # Real-time JSON stream
+
+Long Videos:
+────────────
+python streaming_vlm/inference/inference.py \
+    --model_path Qwen/Qwen3-VL-8B-Instruct \
+    --model_base Qwen3 \
+    --video_path long_video.mp4 \
+    --window_size 32 \
+    --text_sink 256 \
+    --text_sliding_window 256
+
+════════════════════════════════════════════════════════════════════════════
+
+DECISION MATRIX: What Should I Do?
+════════════════════════════════════════════════════════════════════════════
+
+Scenario                          Action                    Docs to Read
+────────────────────────────────────────────────────────────────────────
+"I want to understand the        1. QUICK_REFERENCE.md     5 min read
+ upgrade quickly"                2. UPGRADE_SUMMARY.md     15 min read
+
+"I have a GPU, want to test      1. Local Test (above)     5 min setup
+ locally"                        2. Run inference          10 min run
+
+"I want to deploy on RunPod"     1. RUNPOD_DEPLOYMENT.md  30 min read
+                                 2. Follow setup script    10 min setup
+                                 3. Run inference          5 min run
+
+"I want production API server"   1. RUNPOD_DEPLOYMENT.md  30 min
+ (Step 5)
+                                 2. FastAPI setup         20 min
+
+"I need to optimize for my       1. UPGRADE_SUMMARY.md    15 min
+ specific use case"              2. Benchmark              varies
+
+════════════════════════════════════════════════════════════════════════════
+
+COST CALCULATOR
+════════════════════════════════════════════════════════════════════════════
+
+TO CALCULATE YOUR COSTS:
+
+Video Length (minutes) × Cost Per Minute Video = Total Cost
+
+Cost Per Minute:
+  L40S (3-5 FPS)  → $0.008-0.017 per minute
+  A100 (2-4 FPS)  → $0.015-0.035 per minute  ⭐
+  H100 (5-8 FPS)  → $0.010-0.020 per minute
+
+Examples:
+  • 10 min video on A100: 10 × $0.025 ≈ $0.25
+  • 1 hour video on A100:  60 × $0.025 ≈ $1.50
+  • 10 hours on A100:     600 × $0.025 ≈ $15
+
+════════════════════════════════════════════════════════════════════════════
+
+📊 SUMMARY TABLE
+════════════════════════════════════════════════════════════════════════════
+
+                      LOCAL GPU          RUNPOD              RUNPOD API
+                      ─────────────────  ─────────────────   ─────────────────
+Setup Time            5 min              10 min              30 min
+Monthly Cost          ~$0                ~$300-500           ~$300-500
+Inference Speed       2-8 FPS            2-4 FPS (A100)      2-4 FPS (A100)
+Learning Curve        Easy               Medium              Hard
+Production Ready?     ✅ YES             ✅ YES              ✅ YES
+Scalability           ❌ Limited         ✅ HIGH             ✅ HIGH
+
+════════════════════════════════════════════════════════════════════════════
+
+🎯 RECOMMENDED PATH FOR FIRST-TIME USERS
+════════════════════════════════════════════════════════════════════════════
+
+Day 1: LOCAL TESTING
+  1. Read QUICK_REFERENCE.md (5 min)
+  2. Update transformers (2 min)
+  3. Run test locally (10 min)
+  4. Check output (5 min)
+  Total: ~20 minutes
+
+Day 2-3: RUNPOD TESTING
+  1. Create RunPod account (5 min)
+  2. Spin up A100 pod (2 min)
+  3. Run setup script (10 min)
+  4. Test inference (15 min)
+  5. Monitor costs (5 min)
+  Total: ~40 minutes
+  Cost: ~$0.30-0.50
+
+Day 4+: PRODUCTION DEPLOYMENT
+  1. Set up API server (if needed)
+  2. Integrate with application
+  3. Monitor performance and costs
+  4. Optimize parameters
+
+════════════════════════════════════════════════════════════════════════════
+
+That's it! You're ready to go. 🚀
+
+Start with: cat QUICK_REFERENCE.md
+
+════════════════════════════════════════════════════════════════════════════

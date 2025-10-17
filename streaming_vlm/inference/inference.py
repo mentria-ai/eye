@@ -4,22 +4,35 @@
 Streaming video description + WebVTT subtitle generation
 Run example:
     python streaming_inference.py \
-        --model_path Qwen/Qwen2-VL-7B-Instruct \
+        --model_path Qwen/Qwen3-VL-8B-Instruct \
         --video_path demo/sources/howto_fix_laptop_mute_1080p.mp4 \
         --output_dir generated_subtitles.vtt
 """
 import torch, functools, os, argparse
 from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2VLForConditionalGeneration, Qwen2_5_VLProcessor, Qwen2VLProcessor, AutoProcessor
+try:
+    from transformers import Qwen3VLForConditionalGeneration
+    QWEN3_AVAILABLE = True
+except ImportError:
+    QWEN3_AVAILABLE = False
+    Qwen3VLForConditionalGeneration = None
+
+# Import qwen_vl_utils helper function
+try:
+    from qwen_vl_utils import process_vision_info
+    HAS_QWEN_VL_UTILS = True
+except ImportError:
+    HAS_QWEN_VL_UTILS = False
+
 from streaming_vlm.inference.streaming_args import StreamingArgs
 from streaming_vlm.utils.get_qwen_range import *
-from qwen_vl_utils.vision_process import (
-    FORCE_QWENVL_VIDEO_READER, VIDEO_TOTAL_PIXELS, FPS_MAX_FRAMES, VIDEO_MIN_PIXELS, VIDEO_MAX_PIXELS, FRAME_FACTOR, IMAGE_FACTOR, FPS,
-    smart_nframes, smart_resize
-)
+
 import sys
 import json
 from streaming_vlm.inference.qwen2_5.patch_model import convert_qwen2_5_to_streaming
 from streaming_vlm.inference.qwen2.patch_model import convert_qwen2_to_streaming
+if QWEN3_AVAILABLE:
+    from streaming_vlm.inference.qwen3.patch_model import convert_qwen3_to_streaming
 from contextlib import contextmanager          
 from transformers import set_seed
 set_seed(42)   
@@ -28,6 +41,7 @@ from livecc_utils import  get_smart_resized_video_reader
 from livecc_utils.video_process_patch import _read_video_decord_plus, _spatial_resize_video
 import time
 from streaming_vlm.utils.vtt_utils import open_vtt, sec2ts
+
 # -----------------------------------------------------------------
 # Global configuration
 # -----------------------------------------------------------------
@@ -40,9 +54,13 @@ DEFAULT_TEXT_SLIDING_WINDOW = 512
 DEFAULT_TEMPERATURE = 0.9
 DEFAULT_REPETITION_PENALTY = 1.05
 
-NFRAMES = FPS * DEFAULT_WINDOW_SIZE
-MAX_PIXELS = max(min(VIDEO_MAX_PIXELS, VIDEO_TOTAL_PIXELS / NFRAMES * FRAME_FACTOR), int(VIDEO_MIN_PIXELS * 1.05))
+# Video processing defaults (compatible with Qwen3VL)
+FPS = 2.0  # Frames per second
+VIDEO_MAX_PIXELS = 32000 * 28 * 28  # Maximum pixels for video processing
 MAX_TOKEN_PER_DURATION = 20
+
+NFRAMES = int(FPS * DEFAULT_WINDOW_SIZE)
+MAX_PIXELS = 360 * 640  # Standard resolution
 
 # -----------------------------------------------------------------
 # Helper: KV cache pruning
@@ -68,7 +86,20 @@ def contiguous_id_and_kv(input_ids, past_key_values):
     return input_ids, past_key_values
 
 def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
-    if model_base == 'Qwen2_5':
+    if model_base == 'Qwen3':
+        if not QWEN3_AVAILABLE:
+            raise ImportError(
+                "Qwen3 support requires transformers>=4.51.0. "
+                "Please upgrade: pip install --upgrade transformers"
+            )
+        # Qwen3VL uses 'dtype' instead of 'torch_dtype'
+        model = Qwen3VLForConditionalGeneration.from_pretrained(
+            model_path, dtype="auto", device_map="cuda",
+            attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
+        )
+        model = convert_qwen3_to_streaming(model)
+        processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
+    elif model_base == 'Qwen2_5':
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_path, torch_dtype="auto", device_map="cuda",
             attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
@@ -220,7 +251,9 @@ def streaming_inference(model_path="",
     if model is None or processor is None:
         model, processor = load_model_and_processor(model_path, model_base)
     else: 
-        if model_base == 'Qwen2_5':
+        if model_base == 'Qwen3':
+            model = convert_qwen3_to_streaming(model)
+        elif model_base == 'Qwen2_5':
             model = convert_qwen2_5_to_streaming(model)
         elif model_base == 'Qwen2':
             model = convert_qwen2_to_streaming(model)
@@ -529,7 +562,7 @@ if __name__ == "__main__":
     args.add_argument("--pos_mode", type=str, default="shrink", choices=["append", "shrink"])
     args.add_argument("--all_text", action="store_true", default=False)
     args.add_argument("--model_path", type=str, default="mit-han-lab/StreamingVLM")
-    args.add_argument("--model_base", type=str, choices=["Qwen2_5", "Qwen2", "VILA"], default="Qwen2_5")
+    args.add_argument("--model_base", type=str, choices=["Qwen3", "Qwen2_5", "Qwen2", "VILA"], default="Qwen3")
     args.add_argument("--video_path", type=str, default=default_video)
     args.add_argument("--window_size", type=int, default=DEFAULT_WINDOW_SIZE)
     args.add_argument("--chunk_duration", type=int, default=DEFAULT_CHUNK_DURATION)
