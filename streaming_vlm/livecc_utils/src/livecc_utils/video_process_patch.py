@@ -10,17 +10,34 @@ from torchvision import transforms
 
 os.environ['FORCE_QWENVL_VIDEO_READER'] = 'decord+'
 os.environ['VIDEO_MAX_PIXELS'] = str(int(os.environ.get('VIDEO_MAX_PIXELS', 4 * 24576 * 28 * 28)))  # increase this for streaming. 24576 * 28 * 28 = 19267584
-import qwen_vl_utils.vision_process
-qwen_vl_utils.vision_process.VIDEO_MIN_PIXELS = int(os.environ.get('VIDEO_MIN_PIXELS', 100 * 28 * 28))  # follow qwen2vl paper
-qwen_vl_utils.vision_process.FPS_MAX_FRAMES = int(os.environ.get('FPS_MAX_FRAMES', 480))  # decrease this for efficiency
-from qwen_vl_utils.vision_process import (
-    FORCE_QWENVL_VIDEO_READER, VIDEO_TOTAL_PIXELS, FPS_MAX_FRAMES, VIDEO_MIN_PIXELS, VIDEO_MAX_PIXELS, FRAME_FACTOR, IMAGE_FACTOR, FPS,
-    smart_nframes, smart_resize
-)
+
+# Define defaults for backward compatibility with older qwen_vl_utils
+VIDEO_TOTAL_PIXELS = int(os.environ.get('VIDEO_TOTAL_PIXELS', 24576 * 28 * 28))
+VIDEO_MIN_PIXELS = int(os.environ.get('VIDEO_MIN_PIXELS', 100 * 28 * 28))
+VIDEO_MAX_PIXELS = int(os.environ.get('VIDEO_MAX_PIXELS', 4 * 24576 * 28 * 28))
+FPS_MAX_FRAMES = int(os.environ.get('FPS_MAX_FRAMES', 480))
+FRAME_FACTOR = int(os.environ.get('FRAME_FACTOR', 28))
+IMAGE_FACTOR = float(os.environ.get('IMAGE_FACTOR', 1.0))
+FPS = float(os.environ.get('FPS', 2.0))
+
+# Try to import from qwen_vl_utils (gracefully fall back to local defaults)
+try:
+    import qwen_vl_utils.vision_process
+    from qwen_vl_utils.vision_process import smart_nframes, smart_resize, VIDEO_READER_BACKENDS
+    # Update module attributes if they exist
+    if hasattr(qwen_vl_utils.vision_process, 'VIDEO_MIN_PIXELS'):
+        qwen_vl_utils.vision_process.VIDEO_MIN_PIXELS = VIDEO_MIN_PIXELS
+    if hasattr(qwen_vl_utils.vision_process, 'FPS_MAX_FRAMES'):
+        qwen_vl_utils.vision_process.FPS_MAX_FRAMES = FPS_MAX_FRAMES
+except (ImportError, AttributeError) as e:
+    print(f"Warning: Could not import all from qwen_vl_utils.vision_process: {e}")
+    print("Using fallback implementations...")
+    # Fallback implementations
+    from qwen_vl_utils.vision_process import smart_nframes, smart_resize
+    VIDEO_READER_BACKENDS = {}
 
 logger = logging.get_logger(__name__)
-
-logger.warning(f'{__name__}: {FORCE_QWENVL_VIDEO_READER=}, {FPS_MAX_FRAMES=}, {VIDEO_MIN_PIXELS=}, {VIDEO_TOTAL_PIXELS=}')
+logger.warning(f'{__name__}: FORCE_QWENVL_VIDEO_READER=decord+, FPS_MAX_FRAMES={FPS_MAX_FRAMES}, VIDEO_MIN_PIXELS={VIDEO_MIN_PIXELS}, VIDEO_TOTAL_PIXELS={VIDEO_TOTAL_PIXELS}')
 
 
 def _read_video_decord_plus(ele: dict, strict_fps: bool = False, drop_last: bool = True, return_pts: bool = False, only_get_last_frame: Optional[int] = None, vr = None):
@@ -128,8 +145,14 @@ def _read_video_decord_plus(ele: dict, strict_fps: bool = False, drop_last: bool
 
 
 
-from qwen_vl_utils.vision_process import VIDEO_READER_BACKENDS
-_video_reader_backend = VIDEO_READER_BACKENDS['decord+'] = _read_video_decord_plus
+# Register custom video reader backend (if qwen_vl_utils has it)
+try:
+    from qwen_vl_utils.vision_process import VIDEO_READER_BACKENDS
+    VIDEO_READER_BACKENDS['decord+'] = _read_video_decord_plus
+except (ImportError, AttributeError, KeyError):
+    # If VIDEO_READER_BACKENDS doesn't exist, that's OK
+    # _read_video_decord_plus will still be available for direct use
+    pass
 
 def _spatial_resize_video(video: torch.Tensor, nframes: int = None):
     if not nframes:

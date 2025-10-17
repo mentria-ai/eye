@@ -1,3 +1,8 @@
+# Local packages (must be installed first before other dependencies)
+# Install with: pip install -e streaming_vlm/livecc_utils/
+-e streaming_vlm/livecc_utils/
+
+# External dependencies
 accelerate==1.8.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.15
