@@ -16,6 +16,14 @@ try:
 except ImportError:
     QWEN3_AVAILABLE = False
     Qwen3VLForConditionalGeneration = None
+
+# Import qwen_vl_utils helper function
+try:
+    from qwen_vl_utils import process_vision_info
+    HAS_QWEN_VL_UTILS = True
+except ImportError:
+    HAS_QWEN_VL_UTILS = False
+
 from streaming_vlm.inference.streaming_args import StreamingArgs
 from streaming_vlm.utils.get_qwen_range import *
 from qwen_vl_utils.vision_process import (
@@ -36,6 +44,7 @@ from livecc_utils import  get_smart_resized_video_reader
 from livecc_utils.video_process_patch import _read_video_decord_plus, _spatial_resize_video
 import time
 from streaming_vlm.utils.vtt_utils import open_vtt, sec2ts
+
 # -----------------------------------------------------------------
 # Global configuration
 # -----------------------------------------------------------------
@@ -48,9 +57,13 @@ DEFAULT_TEXT_SLIDING_WINDOW = 512
 DEFAULT_TEMPERATURE = 0.9
 DEFAULT_REPETITION_PENALTY = 1.05
 
-NFRAMES = FPS * DEFAULT_WINDOW_SIZE
-MAX_PIXELS = max(min(VIDEO_MAX_PIXELS, VIDEO_TOTAL_PIXELS / NFRAMES * FRAME_FACTOR), int(VIDEO_MIN_PIXELS * 1.05))
+# Video processing defaults (compatible with Qwen3VL)
+FPS = 2.0  # Frames per second
+VIDEO_MAX_PIXELS = 32000 * 28 * 28  # Maximum pixels for video processing
 MAX_TOKEN_PER_DURATION = 20
+
+NFRAMES = int(FPS * DEFAULT_WINDOW_SIZE)
+MAX_PIXELS = 360 * 640  # Standard resolution
 
 # -----------------------------------------------------------------
 # Helper: KV cache pruning
@@ -82,8 +95,9 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
                 "Qwen3 support requires transformers>=4.51.0. "
                 "Please upgrade: pip install --upgrade transformers"
             )
+        # Qwen3VL uses 'dtype' instead of 'torch_dtype'
         model = Qwen3VLForConditionalGeneration.from_pretrained(
-            model_path, torch_dtype="auto", device_map="cuda",
+            model_path, dtype="auto", device_map="cuda",
             attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
         )
         model = convert_qwen3_to_streaming(model)
