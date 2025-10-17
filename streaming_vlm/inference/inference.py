@@ -103,14 +103,14 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
         attn_implementation = "flash_attention_2" if torch.cuda.is_available() else "eager"
         try:
             model = Qwen3VLForConditionalGeneration.from_pretrained(
-                model_path, dtype="auto", device_map="cuda",
+                model_path, torch_dtype=torch.float16, device_map="cuda",
                 attn_implementation=attn_implementation
             )
         except ImportError as e:
             if "flash_attn" in str(e).lower():
                 print(f"Warning: Flash Attention 2 not available, falling back to eager attention")
                 model = Qwen3VLForConditionalGeneration.from_pretrained(
-                    model_path, dtype="auto", device_map="cuda",
+                    model_path, torch_dtype=torch.float16, device_map="cuda",
                     attn_implementation="eager"
                 )
             else:
@@ -424,16 +424,18 @@ def streaming_inference(model_path="",
         ########################## Handle past_key_values ###################################
         _sync(); _t = time.perf_counter()
 
-        past_key_values, prev_generated_ids, recent_video_window_clips, recent_pixel_values_videos = process_past_kv(past_key_values, i, 
-                                                                                         text_round=text_round, visual_round=window_size, 
-                                                                                         full_conversation_history=full_conversation_history, 
-                                                                                         prev_generated_ids=prev_generated_ids, 
-                                                                                         assistant_start_bias=assistant_start_bias, 
-                                                                                         assistant_end_bias=assistant_end_bias, 
-                                                                                         recent_video_window_clips=recent_video_window_clips,
-                                                                                         recent_pixel_values_videos=recent_pixel_values_videos,
-                                                                                         text_sink=text_sink,
-                                                                                         text_sliding_window=text_sliding_window)
+        # ✅ For Qwen3, skip complex KV cache management (it's not patched, uses native transformers)
+        if model_base != 'Qwen3':
+            past_key_values, prev_generated_ids, recent_video_window_clips, recent_pixel_values_videos = process_past_kv(past_key_values, i, 
+                                                                                             text_round=text_round, visual_round=window_size, 
+                                                                                             full_conversation_history=full_conversation_history, 
+                                                                                             prev_generated_ids=prev_generated_ids, 
+                                                                                             assistant_start_bias=assistant_start_bias, 
+                                                                                             assistant_end_bias=assistant_end_bias, 
+                                                                                             recent_video_window_clips=recent_video_window_clips,
+                                                                                             recent_pixel_values_videos=recent_pixel_values_videos,
+                                                                                             text_sink=text_sink,
+                                                                                             text_sliding_window=text_sliding_window)
         _sync();section_time['PKV'] += (time.perf_counter() - _t)
 
         _sync(); _t = time.perf_counter()

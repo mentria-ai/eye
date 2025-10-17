@@ -15,7 +15,8 @@ try:
     HAS_FLASH_UTILS = True
 except ImportError:
     HAS_FLASH_UTILS = False
-    logger.warning("Could not import flash attention utilities from transformers. Falling back to standard attention.")
+    # Note: This module is not used for Qwen3-VL anymore (model uses native implementation)
+    # logger.warning("Could not import flash attention utilities from transformers. Falling back to standard attention.")
 
 def streaming_visual_attention_forward(
         self,
