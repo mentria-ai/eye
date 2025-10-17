@@ -117,7 +117,12 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
                 raise
         
         if convert_qwen3_to_streaming:
-            model = convert_qwen3_to_streaming(model)
+            try:
+                model = convert_qwen3_to_streaming(model)
+                print("✅ Qwen3 streaming patches applied successfully")
+            except Exception as e:
+                print(f"Warning: Failed to apply Qwen3 streaming patches: {e}")
+                print("Model will still work but without streaming KV cache optimizations")
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
         
     elif model_base == 'Qwen2_5':
@@ -143,8 +148,6 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
                     model_path, torch_dtype="auto", device_map="cuda",
                     attn_implementation="eager"
                 )
-            else:
-                raise
         
         if convert_qwen2_5_to_streaming:
             model = convert_qwen2_5_to_streaming(model)
@@ -173,8 +176,6 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
                     model_path, torch_dtype="auto", device_map="cuda",
                     attn_implementation="eager"
                 )
-            else:
-                raise
         
         if convert_qwen2_to_streaming:
             model = convert_qwen2_to_streaming(model)
