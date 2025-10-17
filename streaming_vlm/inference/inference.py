@@ -29,10 +29,9 @@ from streaming_vlm.utils.get_qwen_range import *
 
 import sys
 import json
-from streaming_vlm.inference.qwen2_5.patch_model import convert_qwen2_5_to_streaming
-from streaming_vlm.inference.qwen2.patch_model import convert_qwen2_to_streaming
-if QWEN3_AVAILABLE:
-    from streaming_vlm.inference.qwen3.patch_model import convert_qwen3_to_streaming
+
+# Only import old patches when needed (lazy loading)
+# This prevents import errors when only using Qwen3
 from contextlib import contextmanager          
 from transformers import set_seed
 set_seed(42)   
@@ -92,26 +91,55 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
                 "Qwen3 support requires transformers>=4.51.0. "
                 "Please upgrade: pip install --upgrade transformers"
             )
+        # Lazy import for Qwen3
+        try:
+            from streaming_vlm.inference.qwen3.patch_model import convert_qwen3_to_streaming
+        except ImportError as e:
+            print(f"Warning: Could not import Qwen3 streaming patches: {e}")
+            print("Continuing with standard model loading...")
+            convert_qwen3_to_streaming = None
+            
         # Qwen3VL uses 'dtype' instead of 'torch_dtype'
         model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_path, dtype="auto", device_map="cuda",
             attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
         )
-        model = convert_qwen3_to_streaming(model)
+        if convert_qwen3_to_streaming:
+            model = convert_qwen3_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
+        
     elif model_base == 'Qwen2_5':
+        # Lazy import for Qwen2.5
+        try:
+            from streaming_vlm.inference.qwen2_5.patch_model import convert_qwen2_5_to_streaming
+        except ImportError as e:
+            print(f"Warning: Could not import Qwen2.5 streaming patches: {e}")
+            print("Using standard model loading without streaming optimizations...")
+            convert_qwen2_5_to_streaming = None
+            
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_path, torch_dtype="auto", device_map="cuda",
             attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
         )
-        model = convert_qwen2_5_to_streaming(model)
+        if convert_qwen2_5_to_streaming:
+            model = convert_qwen2_5_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
+        
     elif model_base == 'Qwen2':
+        # Lazy import for Qwen2
+        try:
+            from streaming_vlm.inference.qwen2.patch_model import convert_qwen2_to_streaming
+        except ImportError as e:
+            print(f"Warning: Could not import Qwen2 streaming patches: {e}")
+            print("Using standard model loading without streaming optimizations...")
+            convert_qwen2_to_streaming = None
+            
         model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_path, torch_dtype="auto", device_map="cuda",
             attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
         )
-        model = convert_qwen2_to_streaming(model)
+        if convert_qwen2_to_streaming:
+            model = convert_qwen2_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
     return model, processor
 
@@ -250,13 +278,21 @@ def streaming_inference(model_path="",
 
     if model is None or processor is None:
         model, processor = load_model_and_processor(model_path, model_base)
-    else: 
-        if model_base == 'Qwen3':
-            model = convert_qwen3_to_streaming(model)
-        elif model_base == 'Qwen2_5':
-            model = convert_qwen2_5_to_streaming(model)
-        elif model_base == 'Qwen2':
-            model = convert_qwen2_to_streaming(model)
+    else:
+        # Lazy import of streaming patches only when model is pre-loaded
+        try:
+            if model_base == 'Qwen3':
+                from streaming_vlm.inference.qwen3.patch_model import convert_qwen3_to_streaming
+                model = convert_qwen3_to_streaming(model)
+            elif model_base == 'Qwen2_5':
+                from streaming_vlm.inference.qwen2_5.patch_model import convert_qwen2_5_to_streaming
+                model = convert_qwen2_5_to_streaming(model)
+            elif model_base == 'Qwen2':
+                from streaming_vlm.inference.qwen2.patch_model import convert_qwen2_to_streaming
+                model = convert_qwen2_to_streaming(model)
+        except ImportError as e:
+            print(f"Warning: Could not apply streaming patches: {e}")
+            print("Continuing with standard model...")
     
     assistant_start_bias = len(processor(text="<|im_start|>assistant\n")['input_ids'][0])
     assistant_end_bias = len(processor(text=" ...<|im_end|>")['input_ids'][0])
