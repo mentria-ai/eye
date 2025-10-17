@@ -657,7 +657,7 @@ if __name__ == "__main__":
     args.add_argument("--window_size", type=int, default=DEFAULT_WINDOW_SIZE)
     args.add_argument("--chunk_duration", type=int, default=DEFAULT_CHUNK_DURATION)
     args.add_argument("--text_round", type=int, default=DEFAULT_TEXT_ROUND)
-    args.add_argument("--previous_text", type=str, default="THis is a video with title 'Golden State Warriors’ BEST PLAYS from the 2024-25 NBA Season'. This is Highlight of Warriors. Curry is going to score a 3-pointer")
+    args.add_argument("--previous_text", type=str, default="This is a nature documentary.")
     args.add_argument("--skip_first_chunk", type=int, default=0)
     args.add_argument("--recompute", action='store_true')
     args.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
