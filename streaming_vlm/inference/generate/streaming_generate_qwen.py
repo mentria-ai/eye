@@ -226,10 +226,19 @@ def streaming_generate(
         and not self.config.is_encoder_decoder
     ):
         max_cache_length += inputs_tensor.shape[1]
-    self._prepare_cache_for_generation(
-        generation_config, model_kwargs, assistant_model, batch_size, max_cache_length, device
-    )
-    if model_kwargs.get("past_key_values").get_seq_length() == 0:
+    
+    # ✅ Try with assistant_model first, fall back for Qwen3VL compatibility
+    try:
+        self._prepare_cache_for_generation(
+            generation_config, model_kwargs, assistant_model, batch_size, max_cache_length, device
+        )
+    except TypeError:
+        # For Qwen3VL, method signature doesn't include assistant_model
+        self._prepare_cache_for_generation(
+            generation_config, model_kwargs, batch_size, max_cache_length, device
+        )
+    
+    if model_kwargs.get("past_key_values") is not None and model_kwargs.get("past_key_values").get_seq_length() == 0:
         model_kwargs["past_key_values"] = StreamingCache()
 
     # 8. determine generation mode
