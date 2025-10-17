@@ -22,15 +22,16 @@ def prepare_multiturn_multimodal_inputs_for_generation(
 ):
 
     model_inputs = {}
-    # ✅ Proper fix: Check if _supports_cache_class exists (transformers version compatibility)
-    supports_cache_class = getattr(self, '_supports_cache_class', False)
-    if supports_cache_class:
-        model_inputs["cache_position"] = cache_position
-    elif cache_position is None:
-        # Fallback: compute cache_position manually if not provided
+    
+    # Always compute cache_position if not provided (needed for all code paths)
+    # This handles both old and new transformers versions
+    if cache_position is None:
         past_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
         cache_position = torch.arange(past_length, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-
+    
+    # Add cache_position to model_inputs (required for later code)
+    model_inputs["cache_position"] = cache_position
+    
     if past_key_values is not None:
         model_inputs["past_key_values"] = past_key_values
         inputs_embeds, input_ids = self._cache_dependant_input_preparation(
