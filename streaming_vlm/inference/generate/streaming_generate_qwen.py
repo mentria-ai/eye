@@ -152,7 +152,13 @@ def streaming_generate(
         generation_config, use_model_defaults, **kwargs
     )
     self._validate_model_kwargs(model_kwargs.copy())
-    self._validate_assistant(assistant_model, tokenizer, assistant_tokenizer)
+    
+    # ✅ Graceful fallback for Qwen3VL (might not have _validate_assistant)
+    if hasattr(self, '_validate_assistant'):
+        self._validate_assistant(assistant_model, tokenizer, assistant_tokenizer)
+    else:
+        # For Qwen3VL, just skip this validation
+        pass
 
     # 2. Set generation parameters if not already defined
     if synced_gpus is None:
