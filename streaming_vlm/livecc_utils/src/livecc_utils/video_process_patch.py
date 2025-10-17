@@ -167,9 +167,6 @@ def _spatial_resize_video(video: torch.Tensor, nframes: int = None):
         min_pixels=VIDEO_MIN_PIXELS,
         max_pixels=max_pixels,
     )
-    # Convert to int (smart_resize returns float)
-    resized_height = int(resized_height)
-    resized_width = int(resized_width)
     video = transforms.functional.resize(
         video,
         [resized_height, resized_width],
@@ -192,9 +189,6 @@ def get_smart_resized_video_reader(video_path: str, max_pixels: int = None):
         min_pixels=VIDEO_MIN_PIXELS,
         max_pixels=max_pixels,
     )
-    # Convert to int (smart_resize returns float)
-    resized_height = int(resized_height)
-    resized_width = int(resized_width)
     video_reader = decord.VideoReader(video_path, num_threads=2)
     return video_reader, resized_height, resized_width
 
