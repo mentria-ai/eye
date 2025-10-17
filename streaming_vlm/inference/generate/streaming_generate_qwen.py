@@ -5,6 +5,23 @@ from transformers.generation.utils import *
 from transformers.generation.utils import GenerateOutput
 from streaming_vlm.inference.generate.streaming_cache import StreamingCache
 
+# ✅ Helper function for safe method calls with fallback arguments
+def _safe_call_method(method, method_name, primary_kwargs, fallback_kwargs_list=None):
+    """
+    Safely call a method, trying primary kwargs first, then fallback options.
+    Useful for handling different transformers versions.
+    """
+    try:
+        return method(**primary_kwargs)
+    except TypeError as e:
+        if fallback_kwargs_list:
+            for fallback_kwargs in fallback_kwargs_list:
+                try:
+                    return method(**fallback_kwargs)
+                except TypeError:
+                    continue
+        raise e
+
 def _sample(
         self,
         input_ids: torch.LongTensor,
@@ -256,8 +273,32 @@ def streaming_generate(
         negative_prompt_ids=negative_prompt_ids,
         negative_prompt_attention_mask=negative_prompt_attention_mask,
     )
-    prepared_stopping_criteria = self._get_stopping_criteria(
-        generation_config=generation_config, stopping_criteria=stopping_criteria, tokenizer=tokenizer, **kwargs
+    # ✅ Filter out unsupported kwargs for _get_stopping_criteria (for Qwen3VL compatibility)
+    stopping_criteria_kwargs = {}
+    # Remove keys that typically cause issues with different transformers versions
+    problematic_keys = {'input_ids', 'model_kwargs', 'negative_prompt_ids', 'negative_prompt_attention_mask',
+                        'attention_mask', 'pixel_values_videos', 'video_grid_thw', 'second_per_grid_ts',
+                        'streaming_args', 'past_key_values', 'position_ids'}
+    for k, v in kwargs.items():
+        if k not in problematic_keys:
+            stopping_criteria_kwargs[k] = v
+    
+    prepared_stopping_criteria = _safe_call_method(
+        self._get_stopping_criteria,
+        '_get_stopping_criteria',
+        {
+            'generation_config': generation_config,
+            'stopping_criteria': stopping_criteria,
+            'tokenizer': tokenizer,
+            **stopping_criteria_kwargs
+        },
+        [  # Fallback options
+            {
+                'generation_config': generation_config,
+                'stopping_criteria': stopping_criteria,
+                'tokenizer': tokenizer,
+            }
+        ]
     )
 
     model_kwargs["use_cache"] = generation_config.use_cache
