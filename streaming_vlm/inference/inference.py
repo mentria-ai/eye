@@ -103,14 +103,14 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
         attn_implementation = "flash_attention_2" if torch.cuda.is_available() else "eager"
         try:
             model = Qwen3VLForConditionalGeneration.from_pretrained(
-                model_path, torch_dtype=torch.float16, device_map="cuda",
+                model_path, dtype=torch.float16, device_map="cuda",
                 attn_implementation=attn_implementation
             )
         except ImportError as e:
             if "flash_attn" in str(e).lower():
                 print(f"Warning: Flash Attention 2 not available, falling back to eager attention")
                 model = Qwen3VLForConditionalGeneration.from_pretrained(
-                    model_path, torch_dtype=torch.float16, device_map="cuda",
+                    model_path, dtype=torch.float16, device_map="cuda",
                     attn_implementation="eager"
                 )
             else:
