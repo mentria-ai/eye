@@ -26,10 +26,7 @@ except ImportError:
 
 from streaming_vlm.inference.streaming_args import StreamingArgs
 from streaming_vlm.utils.get_qwen_range import *
-from qwen_vl_utils.vision_process import (
-    FORCE_QWENVL_VIDEO_READER, VIDEO_TOTAL_PIXELS, FPS_MAX_FRAMES, VIDEO_MIN_PIXELS, VIDEO_MAX_PIXELS, FRAME_FACTOR, IMAGE_FACTOR, FPS,
-    smart_nframes, smart_resize
-)
+
 import sys
 import json
 from streaming_vlm.inference.qwen2_5.patch_model import convert_qwen2_5_to_streaming
