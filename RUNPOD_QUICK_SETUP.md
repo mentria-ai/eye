@@ -27,7 +27,7 @@ python3 -c "from transformers import Qwen3VLForConditionalGeneration; print('✓
 ### Get a test video:
 ```bash
 cd /root/streaming-vlm
-wget "https://commondatastorage.googleapis.com/gtv-videos-library/sample/ForBiggerBlazes.mp4" -O video.mp4
+wget "https://www.w3schools.com/tags/movie.mp4" -O video.mp4
 ```
 
 ### Run inference (clean command, no path setup):
@@ -71,7 +71,7 @@ pip install torch==2.7.1 torchvision==0.22.1 --no-deps
 pip install transformers==4.52.4 qwen-vl-utils accelerate Pillow numpy opencv-python
 
 # Get test video
-wget "https://commondatastorage.googleapis.com/gtv-videos-library/sample/ForBiggerBlazes.mp4" -O video.mp4
+wget "https://www.w3schools.com/tags/movie.mp4" -O video.mp4
 
 # Run inference
 python streaming_vlm/inference/inference.py \

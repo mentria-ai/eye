@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-import json, torch, random, tqdm, io, functools,os
+import json, torch, random, tqdm, io, functools, os
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import logging, AutoProcessor, AutoModel, Qwen2_5_VLForConditionalGeneration
@@ -9,7 +9,31 @@ from collections import defaultdict
 from livecc_utils import _read_video_decord_plus, _spatial_resize_video
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import List
-from qwen_vl_utils.vision_process import smart_nframes, process_vision_info, FPS, VIDEO_TOTAL_PIXELS, VIDEO_MIN_PIXELS, FPS_MAX_FRAMES, FORCE_QWENVL_VIDEO_READER
+
+# Import constants from qwen_vl_utils with fallback
+try:
+    from qwen_vl_utils.vision_process import smart_nframes, process_vision_info
+    # Try to get constants (may not exist in newer versions)
+    try:
+        from qwen_vl_utils.vision_process import FPS, VIDEO_TOTAL_PIXELS, VIDEO_MIN_PIXELS, FPS_MAX_FRAMES, FORCE_QWENVL_VIDEO_READER
+    except ImportError:
+        # Define fallbacks if not available
+        FPS = float(os.environ.get('FPS', 2.0))
+        VIDEO_TOTAL_PIXELS = int(os.environ.get('VIDEO_TOTAL_PIXELS', 24576 * 28 * 28))
+        VIDEO_MIN_PIXELS = int(os.environ.get('VIDEO_MIN_PIXELS', 100 * 28 * 28))
+        FPS_MAX_FRAMES = int(os.environ.get('FPS_MAX_FRAMES', 480))
+        FORCE_QWENVL_VIDEO_READER = os.environ.get('FORCE_QWENVL_VIDEO_READER', 'decord+')
+except ImportError as e:
+    print(f"Warning: Could not import from qwen_vl_utils: {e}")
+    # Use local fallbacks
+    from livecc_utils.video_process_patch import smart_nframes
+    process_vision_info = None
+    FPS = float(os.environ.get('FPS', 2.0))
+    VIDEO_TOTAL_PIXELS = int(os.environ.get('VIDEO_TOTAL_PIXELS', 24576 * 28 * 28))
+    VIDEO_MIN_PIXELS = int(os.environ.get('VIDEO_MIN_PIXELS', 100 * 28 * 28))
+    FPS_MAX_FRAMES = int(os.environ.get('FPS_MAX_FRAMES', 480))
+    FORCE_QWENVL_VIDEO_READER = os.environ.get('FORCE_QWENVL_VIDEO_READER', 'decord+')
+
 from streaming_vlm.utils.get_qwen_range import get_qwen_range
 from transformers import set_seed
 
