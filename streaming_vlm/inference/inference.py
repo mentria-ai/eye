@@ -98,12 +98,24 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
             print(f"Warning: Could not import Qwen3 streaming patches: {e}")
             print("Continuing with standard model loading...")
             convert_qwen3_to_streaming = None
-            
-        # Qwen3VL uses 'dtype' instead of 'torch_dtype'
-        model = Qwen3VLForConditionalGeneration.from_pretrained(
-            model_path, dtype="auto", device_map="cuda",
-            attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
-        )
+        
+        # Try flash_attention_2, fallback to eager if not available
+        attn_implementation = "flash_attention_2" if torch.cuda.is_available() else "eager"
+        try:
+            model = Qwen3VLForConditionalGeneration.from_pretrained(
+                model_path, dtype="auto", device_map="cuda",
+                attn_implementation=attn_implementation
+            )
+        except ImportError as e:
+            if "flash_attn" in str(e).lower():
+                print(f"Warning: Flash Attention 2 not available, falling back to eager attention")
+                model = Qwen3VLForConditionalGeneration.from_pretrained(
+                    model_path, dtype="auto", device_map="cuda",
+                    attn_implementation="eager"
+                )
+            else:
+                raise
+        
         if convert_qwen3_to_streaming:
             model = convert_qwen3_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
@@ -116,11 +128,24 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
             print(f"Warning: Could not import Qwen2.5 streaming patches: {e}")
             print("Using standard model loading without streaming optimizations...")
             convert_qwen2_5_to_streaming = None
-            
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            model_path, torch_dtype="auto", device_map="cuda",
-            attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
-        )
+        
+        # Try flash_attention_2, fallback to eager if not available
+        attn_implementation = "flash_attention_2" if torch.cuda.is_available() else "eager"
+        try:
+            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                model_path, torch_dtype="auto", device_map="cuda",
+                attn_implementation=attn_implementation
+            )
+        except ImportError as e:
+            if "flash_attn" in str(e).lower():
+                print(f"Warning: Flash Attention 2 not available, falling back to eager attention")
+                model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                    model_path, torch_dtype="auto", device_map="cuda",
+                    attn_implementation="eager"
+                )
+            else:
+                raise
+        
         if convert_qwen2_5_to_streaming:
             model = convert_qwen2_5_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
@@ -133,11 +158,24 @@ def load_model_and_processor(model_path, model_base = 'Qwen2_5'):
             print(f"Warning: Could not import Qwen2 streaming patches: {e}")
             print("Using standard model loading without streaming optimizations...")
             convert_qwen2_to_streaming = None
-            
-        model = Qwen2VLForConditionalGeneration.from_pretrained(
-            model_path, torch_dtype="auto", device_map="cuda",
-            attn_implementation="flash_attention_2" if torch.cuda.is_available() else "eager"
-        )
+        
+        # Try flash_attention_2, fallback to eager if not available
+        attn_implementation = "flash_attention_2" if torch.cuda.is_available() else "eager"
+        try:
+            model = Qwen2VLForConditionalGeneration.from_pretrained(
+                model_path, torch_dtype="auto", device_map="cuda",
+                attn_implementation=attn_implementation
+            )
+        except ImportError as e:
+            if "flash_attn" in str(e).lower():
+                print(f"Warning: Flash Attention 2 not available, falling back to eager attention")
+                model = Qwen2VLForConditionalGeneration.from_pretrained(
+                    model_path, torch_dtype="auto", device_map="cuda",
+                    attn_implementation="eager"
+                )
+            else:
+                raise
+        
         if convert_qwen2_to_streaming:
             model = convert_qwen2_to_streaming(model)
         processor = AutoProcessor.from_pretrained(model_path, use_fast=False)
