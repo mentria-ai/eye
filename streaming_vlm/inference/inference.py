@@ -494,29 +494,42 @@ def streaming_inference(model_path="",
                 inputs['pixel_values_videos'] = torch.cat(recent_pixel_values_videos,dim=0)
                 inputs['video_grid_thw'] = streaming_args.video_grid_thw[-len(recent_pixel_values_videos):]
                 inputs['second_per_grid_ts'] = streaming_args.second_per_grid_ts[-len(recent_pixel_values_videos):]
+            
+            # Build generate kwargs (exclude streaming_args for Qwen3)
+            generate_kwargs = {
+                "max_new_tokens": MAX_TOKEN_PER_DURATION,
+                "use_cache": True,
+                "return_dict_in_generate": True,
+                "do_sample": True,
+                "repetition_penalty": repetition_penalty,
+                "pad_token_id": 151645,
+                "temperature": temperature,
+            }
+            if model_base != 'Qwen3':
+                generate_kwargs["streaming_args"] = streaming_args
+            
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=MAX_TOKEN_PER_DURATION,
-                use_cache=True,
-                return_dict_in_generate=True,
-                do_sample=True,
-                repetition_penalty=repetition_penalty,
-                streaming_args=streaming_args,
-                pad_token_id=151645,
-                temperature=temperature,
+                **generate_kwargs
             )
         else:
+            # Build generate kwargs (exclude streaming_args for Qwen3)
+            generate_kwargs = {
+                "max_new_tokens": MAX_TOKEN_PER_DURATION,
+                "use_cache": True,
+                "return_dict_in_generate": True,
+                "do_sample": True,
+                "repetition_penalty": repetition_penalty,
+                "pad_token_id": 151645,
+                "temperature": temperature,
+            }
+            if model_base != 'Qwen3':
+                generate_kwargs["streaming_args"] = streaming_args
+                generate_kwargs["past_key_values"] = past_key_values
+            
             outputs = model.generate(
                 **inputs,
-                past_key_values=past_key_values,
-                max_new_tokens=MAX_TOKEN_PER_DURATION,
-                use_cache=True,
-                return_dict_in_generate=True,
-                do_sample=True,
-                repetition_penalty=repetition_penalty,
-                streaming_args=streaming_args,
-                pad_token_id=151645,
-                temperature=temperature,
+                **generate_kwargs
             )
         _sync();section_time['GEN'] += (time.perf_counter() - _t)
 
